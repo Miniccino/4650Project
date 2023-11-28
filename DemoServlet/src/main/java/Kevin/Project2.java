@@ -12,75 +12,69 @@ import javax.servlet.http.HttpServletResponse;
 @WebServlet("/Project2")
 public class Project2 extends HttpServlet {
     private static final long serialVersionUID = 1L;
-    private final String question = "What is your favorite programming language?";
+    private final String[] questions = {
+        "What is your favorite programming language?",
+        "Which IDE do you prefer?",
+        "What is your favorite development framework?"
+    };
     private final String[] choices = { "Java", "Python", "JavaScript", "C#" };
 
-    private final Map<String, Integer> pollResults = new HashMap<>();
+    private final Map<String, Map<String, Integer>> allPollResults = new HashMap<>();
 
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        showWelcomePage(request, response);
+    }
+
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
         String action = request.getParameter("action");
-        if ("showPoll".equals(action)) {
-            showPollPage(request, response);
+        if ("startPoll".equals(action)) {
+            displayChoices(response, 0);
         } else {
-            showWelcomePage(request, response);
+            int questionIndex = Integer.parseInt(request.getParameter("questionIndex"));
+            String selectedAnswer = request.getParameter("selectedAnswer");
+            processAnswer(questionIndex, selectedAnswer);
+
+            int nextQuestionIndex = questionIndex + 1;
+            if (nextQuestionIndex < questions.length) {
+                response.setContentType("text/html");
+                writeHtmlStart(response, "Poll");
+                response.getWriter().write("<div class='container'>");
+                response.getWriter().write("<h1>" + questions[nextQuestionIndex] + "</h1>");
+                displayChoices(response, nextQuestionIndex);
+                response.getWriter().write("</div>");
+                writeHtmlEnd(response);
+            } else {
+                showResultsPage(response);
+            }
         }
     }
 
     private void showWelcomePage(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         response.setContentType("text/html");
-        writeHtmlStart(response, "Welcome");
+        writeHtmlStart(response, "Welcome to the Poll");
         response.getWriter().write("<div class='container'>");
         response.getWriter().write("<h1>Welcome to the Poll</h1>");
         response.getWriter().write("<p>Click below to start the poll.</p>");
-        response.getWriter().write("<form action='?action=showPoll' method='post'>");
-        response.getWriter().write("<button type='submit'>Hi</button>");
+        response.getWriter().write("<form action='Project2' method='post'>");
+        response.getWriter().write("<input type='hidden' name='action' value='startPoll'>");
+        response.getWriter().write("<button type='submit' class='start-btn'>Start Poll</button>");
         response.getWriter().write("</form>");
         response.getWriter().write("</div>");
         writeHtmlEnd(response);
     }
 
-    private void showPollPage(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.setContentType("text/html");
-        writeHtmlStart(response, "Poll");
-        response.getWriter().write("<div class='container'>");
-        response.getWriter().write("<div class='poll-section'>");
-        response.getWriter().write("<h1>Poll</h1>");
-        response.getWriter().write("<p>" + question + "</p>");
-        displayChoices(response);
-        response.getWriter().write("</div>");
-        response.getWriter().write("</div>");
-        writeHtmlEnd(response);
+    private void processAnswer(int questionIndex, String answer) {
+        Map<String, Integer> pollResults = allPollResults.getOrDefault(questions[questionIndex], new HashMap<>());
+        pollResults.put(answer, pollResults.getOrDefault(answer, 0) + 1);
+        allPollResults.put(questions[questionIndex], pollResults);
     }
 
-    protected void doPost(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        String selectedAnswer = request.getParameter("selectedAnswer");
-        processAnswer(selectedAnswer);
-        response.setContentType("text/html");
-        writeHtmlStart(response, "Poll Results");
-        response.getWriter().write("<div class='container'>");
-        response.getWriter().write("<div class='poll-section'>");
-        response.getWriter().write("<h1>Poll Results</h1>");
-        displayResults(response);
-        response.getWriter().write("<div class='result-section'>");
-        displayChoices(response);
-        response.getWriter().write("</div>");
-        response.getWriter().write("</div>");
-        response.getWriter().write("</div>");
-        writeHtmlEnd(response);
-    }
-
-    private void processAnswer(String answer) {
-        if (answer != null && !answer.isEmpty()) {
-            pollResults.put(answer, pollResults.getOrDefault(answer, 0) + 1);
-        }
-    }
-
-    private void displayResults(HttpServletResponse response) throws IOException {
+    private void displayResults(HttpServletResponse response, int questionIndex) throws IOException {
+        Map<String, Integer> pollResults = allPollResults.getOrDefault(questions[questionIndex], new HashMap<>());
         response.getWriter().write("<p><b>Poll Results:</b></p>");
         for (Map.Entry<String, Integer> entry : pollResults.entrySet()) {
             response.getWriter().write(entry.getKey() + ": " + entry.getValue() + "<br>");
@@ -88,17 +82,39 @@ public class Project2 extends HttpServlet {
         response.getWriter().write("<br>");
     }
 
-    private void displayChoices(HttpServletResponse response) throws IOException {
-        response.getWriter().write("<form method='post'>");
-        response.getWriter().write("<div class='choice-container'>");
+    private void displayChoices(HttpServletResponse response, int questionIndex) throws IOException {
+        response.setContentType("text/html");
+        writeHtmlStart(response, "Poll");
+        response.getWriter().write("<div class='container'>");
+        response.getWriter().write("<h1>" + questions[questionIndex] + "</h1>");
+        response.getWriter().write("<form method=\"post\">");
+        response.getWriter().write("<input type=\"hidden\" name=\"questionIndex\" value=\"" + questionIndex + "\">");
         for (String choice : choices) {
-            String choiceId = choice.replace(" ", "_");
-            response.getWriter().write("<input type='radio' id='" + choiceId + "' name='selectedAnswer' value='" + choice + "'>");
-            response.getWriter().write("<label for='" + choiceId + "' class='choice'>" + choice + "</label>");
+            response.getWriter().write("<label class='choice'>");
+            response.getWriter().write("<input type=\"radio\" name=\"selectedAnswer\" value=\"" + choice + "\"> " + choice);
+            response.getWriter().write("</label><br>");
         }
-        response.getWriter().write("</div><br>");
-        response.getWriter().write("<button type='submit'>Submit Answer</button>");
+        response.getWriter().write("<button type=\"submit\" class='submit-btn'>Submit Answer</button>");
         response.getWriter().write("</form>");
+        response.getWriter().write("</div>");
+        writeHtmlEnd(response);
+    }
+
+    private void showResultsPage(HttpServletResponse response) throws IOException {
+        response.setContentType("text/html");
+        writeHtmlStart(response, "Poll Results");
+        response.getWriter().write("<div class='container'>");
+        response.getWriter().write("<h1>All Poll Results</h1>");
+        for (int i = 0; i < questions.length; i++) {
+            response.getWriter().write("<h2>" + questions[i] + "</h2>");
+            displayResults(response, i);
+        }
+        response.getWriter().write("<form action='Project2' method='post'>");
+        response.getWriter().write("<input type='hidden' name='action' value='startPoll'>");
+        response.getWriter().write("<button type='submit' class='start-btn'>Start Over</button>");
+        response.getWriter().write("</form>");
+        response.getWriter().write("</div>");
+        writeHtmlEnd(response);
     }
 
     private void writeHtmlStart(HttpServletResponse response, String title) throws IOException {
@@ -112,20 +128,16 @@ public class Project2 extends HttpServlet {
     }
 
     private void addStyleBlock(HttpServletResponse response) throws IOException {
-        // Embedded styles
         response.getWriter().write("<style>");
-        response.getWriter().write("html, body { height: 100%; margin: 0; display: flex; justify-content: center; align-items: center; }");
-        response.getWriter().write("body { background-color: #f4f4f4; font-family: Arial, sans-serif; }");
-        response.getWriter().write(".container { width: 90%; max-width: 600px; text-align: center; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); padding: 2rem; border-radius: 0.5rem; background: white; }");
-        response.getWriter().write("h1 { color: #333; margin-bottom: 2rem; }");
-        response.getWriter().write("p { color: #555; }");
-        response.getWriter().write(".poll-section, .result-section { margin-bottom: 1rem; }");
-        response.getWriter().write(".choice-container { display: flex; justify-content: center; flex-wrap: wrap; }");
-        response.getWriter().write("label.choice { padding: 1rem; margin: 0.5rem; border: 1px solid #ddd; border-radius: 0.3rem; cursor: pointer; transition: transform 0.1s ease; }");
-        response.getWriter().write("label.choice:hover { background-color: #f0f0f0; transform: translateY(-3px); }");
-        response.getWriter().write("input[type='radio']:checked + label { background-color: #bde0fe; border-color: #89c2d9; }");
-        response.getWriter().write("button { background-color: #4CAF50; color: white; padding: 1rem 2rem; border: none; border-radius: 0.3rem; cursor: pointer; transition: background-color 0.2s; }");
+        response.getWriter().write("html, body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #f4f4f4; height: 100%; display: flex; justify-content: center; align-items: center; }");
+        response.getWriter().write(".container { width: 90%; max-width: 600px; margin: auto; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }");
+        response.getWriter().write("h1, h2 { color: #333; margin-bottom: 1rem; }");
+        response.getWriter().write(".choice { display: block; margin: 10px auto; padding: 10px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer; transition: background-color 0.2s ease; }");
+        response.getWriter().write(".choice:hover { background-color: #f0f0f0; }");
+        response.getWriter().write("input[type='radio'] { margin-right: 10px; }");
+        response.getWriter().write("button { background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; }");
         response.getWriter().write("button:hover { background-color: #45a049; }");
         response.getWriter().write("</style>");
     }
+
 }
